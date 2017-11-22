@@ -1,3 +1,8 @@
+**This is a mirror of ABC for the use in CirKit**
+
+The original ABC repository, maintained by Alan Mischenko, can be
+found at [bitbucket.org/alanmi/abc](https://bitbucket.org/alanmi/abc).
+
 # ABC: System for Sequential Logic Synthesis and Formal Verification
 
 ABC is always changing but the current snapshot is believed to be stable. 
