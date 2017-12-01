@@ -84,12 +84,12 @@ endif()
 
 function(abc_properties target visibility)
     target_include_directories(${target} ${visibility} ${CMAKE_CURRENT_SOURCE_DIR}/src )
-    target_compile_options_filtered(${target} ${visibility} ${ABC_CFLAGS} ${ABC_CXXFLAGS} -Wno-unused-but-set-variable )
+    target_compile_options_filtered(${target} ${visibility} ${ABC_CFLAGS} ${ABC_CXXFLAGS} -Wno-unused-but-set-variable -Wno-unused-variable -Wno-dangling-else -Wno-sometimes-uninitialized -Wno-deprecated -Wno-constant-logical-operand -Wno-format)
     target_link_libraries(${target} ${visibility} ${ABC_LIBS})
 endfunction()
 
-add_executable(abc ${ABC_SRC})
-abc_properties(abc PRIVATE)
+#add_executable(abc ${ABC_SRC})
+#abc_properties(abc PRIVATE)
 
 list(REMOVE_ITEM ABC_SRC src/base/main/main.c)
 
