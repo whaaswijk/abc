@@ -96,7 +96,7 @@ ABC_NAMESPACE_HEADER_START
       (for example, the 16-bit constant 10 is represented as a string "4'b1010". This string contains  8 bytes, 
       including the char '\0' to denote the end of the string. It will take 2 unsigned ints, therefore 
       its record will look as follows { {NDR_FUNCTION, 2}, {"4'b1010"} }, but the user does not see these details.  
-      The user only gives  "4'b1010" as an argument (char * pFunction) to the above procedure Ndr_ModuleAddObject(). 
+      The user only gives  "4'b1010" as an argument (char * pFunction) to the above procedure Ndr_AddObject(). 
 */
 
 ////////////////////////////////////////////////////////////////////////
@@ -273,17 +273,29 @@ static inline int * Ndr_ObjReadBodyP( Ndr_Data_t * p, int Obj, int Type )
             return Ndr_DataEntryP(p, Ent);
     return NULL;
 }
-static inline void Ndr_ObjWriteRange( Ndr_Data_t * p, int Obj, FILE * pFile )
+static inline void Ndr_ObjWriteRange( Ndr_Data_t * p, int Obj, FILE * pFile, int fSkipBin )
 {
     int * pArray, nArray = Ndr_ObjReadArray( p, Obj, NDR_RANGE, &pArray );
-    if ( nArray == 0 )
+    if ( (nArray == 0 || nArray == 1) && fSkipBin )
         return;
-    if ( nArray == 3 )
+    if ( nArray == 3 && fSkipBin )
         fprintf( pFile, "signed " ); 
-    if ( nArray == 1 )
-        fprintf( pFile, "[%d] ", pArray[0] );
+    else if ( nArray == 1 )
+    {
+        if ( fSkipBin )
+            fprintf( pFile, "[%d:%d]", pArray[0], pArray[0] );
+        else
+            fprintf( pFile, "[%d]", pArray[0] );
+    }
+    else if ( nArray == 0 )
+    {
+        if ( fSkipBin )
+            fprintf( pFile, "[%d:%d]", 0, 0 );
+        else
+            fprintf( pFile, "[%d]", 0 );
+    }
     else
-        fprintf( pFile, "[%d:%d] ", pArray[0], pArray[1] );
+        fprintf( pFile, "[%d:%d]", pArray[0], pArray[1] );
 }
 static inline char * Ndr_ObjReadOutName( Ndr_Data_t * p, int Obj, char ** pNames )
 {
@@ -317,15 +329,12 @@ static inline int Ndr_DataObjNum( Ndr_Data_t * p, int Mod )
 }
 
 // to write signal names, this procedure takes a mapping of name IDs into actual char-strings (pNames)
-static inline void Ndr_ModuleWriteVerilog( char * pFileName, void * pModule, char ** pNames )
+static inline void Ndr_WriteVerilogModule( FILE * pFile, void * pDesign, int Mod, char ** pNames )
 {
-    Ndr_Data_t * p = (Ndr_Data_t *)pModule; 
-    int Mod = 0, Obj, nArray, * pArray, fFirst = 1;
+    Ndr_Data_t * p = (Ndr_Data_t *)pDesign; 
+    int Obj, nArray, * pArray, fFirst = 1;
 
-    FILE * pFile = pFileName ? fopen( pFileName, "wb" ) : stdout;
-    if ( pFile == NULL ) { printf( "Cannot open file \"%s\" for writing.\n", pFileName ); return; }
-
-    fprintf( pFile, "\nmodule %s (\n  ", pNames[Ndr_ObjReadEntry(p, 0, NDR_NAME)] );
+    fprintf( pFile, "\nmodule %s (\n  ", pNames[Ndr_ObjReadEntry(p, Mod, NDR_NAME)] );
 
     Ndr_ModForEachPi( p, Mod, Obj )
         fprintf( pFile, "%s, ", Ndr_ObjReadOutName(p, Obj, pNames) );
@@ -340,46 +349,87 @@ static inline void Ndr_ModuleWriteVerilog( char * pFileName, void * pModule, cha
     Ndr_ModForEachPi( p, Mod, Obj )
     {
         fprintf( pFile, "  input " );
-        Ndr_ObjWriteRange( p, Obj, pFile );
-        fprintf( pFile, "%s;\n", Ndr_ObjReadOutName(p, Obj, pNames) );
+        Ndr_ObjWriteRange( p, Obj, pFile, 1 );
+        fprintf( pFile, " %s;\n", Ndr_ObjReadOutName(p, Obj, pNames) );
     }
 
     Ndr_ModForEachPo( p, Mod, Obj )
     {
         fprintf( pFile, "  output " );
-        Ndr_ObjWriteRange( p, Obj, pFile );
-        fprintf( pFile, "%s;\n", Ndr_ObjReadInName(p, Obj, pNames) );
-    }
-
-    Ndr_ModForEachNode( p, Mod, Obj )
-    {
-        fprintf( pFile, "  wire " );
-        Ndr_ObjWriteRange( p, Obj, pFile );
-        fprintf( pFile, "%s;\n", Ndr_ObjReadOutName(p, Obj, pNames) );
+        Ndr_ObjWriteRange( p, Obj, pFile, 1 );
+        fprintf( pFile, " %s;\n", Ndr_ObjReadInName(p, Obj, pNames) );
     }
 
     fprintf( pFile, "\n" );
 
     Ndr_ModForEachNode( p, Mod, Obj )
     {
+        fprintf( pFile, "  wire " );
+        Ndr_ObjWriteRange( p, Obj, pFile, 1 );
+        fprintf( pFile, " %s;\n", Ndr_ObjReadOutName(p, Obj, pNames) );
+    }
+
+    fprintf( pFile, "\n" );
+
+    Ndr_ModForEachNode( p, Mod, Obj )
+    {
+        int i, Type = Ndr_ObjReadBody(p, Obj, NDR_OPERTYPE);
+        if ( Type >= 256 )
+        {
+            fprintf( pFile, "  %s ", pNames[Ndr_ObjReadEntry(p, Type-256, NDR_NAME)] );
+            if ( Ndr_ObjReadBody(p, Obj, NDR_NAME) )
+                fprintf( pFile, "%s ", pNames[Ndr_ObjReadBody(p, Obj, NDR_NAME)] );
+            fprintf( pFile, "( " );
+            nArray = Ndr_ObjReadArray( p, Obj, NDR_INPUT, &pArray );
+            for ( i = 0; i < nArray; i++ )
+                fprintf( pFile, "%s%s ", pNames[pArray[i]], i==nArray-1 ? "":"," );
+            fprintf( pFile, ");\n" );
+            continue;
+        }
         fprintf( pFile, "  assign %s = ", Ndr_ObjReadOutName(p, Obj, pNames) );
         nArray = Ndr_ObjReadArray( p, Obj, NDR_INPUT, &pArray );
         if ( nArray == 0 )
             fprintf( pFile, "%s;\n", (char *)Ndr_ObjReadBodyP(p, Obj, NDR_FUNCTION) );
         else if ( nArray == 1 && Ndr_ObjReadBody(p, Obj, NDR_OPERTYPE) == ABC_OPER_BIT_BUF )
             fprintf( pFile, "%s;\n", pNames[pArray[0]] );
+        else if ( Type == ABC_OPER_SLICE )
+            fprintf( pFile, "%s", pNames[pArray[0]] ),
+            Ndr_ObjWriteRange( p, Obj, pFile, 0 ),
+            fprintf( pFile, ";\n" );
+        else if ( Type == ABC_OPER_CONCAT )
+        {
+            fprintf( pFile, "{" );
+            for ( i = 0; i < nArray; i++ )
+                fprintf( pFile, "%s%s", pNames[pArray[i]], i==nArray-1 ? "":", " );
+            fprintf( pFile, "};\n" );
+        }
         else if ( nArray == 1 )
             fprintf( pFile, "%s %s;\n", Abc_OperName(Ndr_ObjReadBody(p, Obj, NDR_OPERTYPE)), pNames[pArray[0]] );
         else if ( nArray == 2 )
             fprintf( pFile, "%s %s %s;\n", pNames[pArray[0]], Abc_OperName(Ndr_ObjReadBody(p, Obj, NDR_OPERTYPE)), pNames[pArray[1]] );
-        else if ( Ndr_ObjReadBody(p, Obj, NDR_OPERTYPE) == ABC_OPER_BIT_MUX )
+        else if ( nArray == 3 && Type == ABC_OPER_ARI_ADD )
+            fprintf( pFile, "%s + %s + %s;\n", pNames[pArray[0]], pNames[pArray[1]], pNames[pArray[2]] );
+        else if ( Type == ABC_OPER_BIT_MUX )
             fprintf( pFile, "%s ? %s : %s;\n", pNames[pArray[0]], pNames[pArray[1]], pNames[pArray[2]] );
         else
             fprintf( pFile, "<cannot write operation %s>;\n", Abc_OperName(Ndr_ObjReadBody(p, Obj, NDR_OPERTYPE)) );
     }
 
     fprintf( pFile, "\nendmodule\n\n" );
-    fclose( pFile );
+}
+
+// to write signal names, this procedure takes a mapping of name IDs into actual char-strings (pNames)
+static inline void Ndr_WriteVerilog( char * pFileName, void * pDesign, char ** pNames )
+{
+    Ndr_Data_t * p = (Ndr_Data_t *)pDesign; int Mod;
+
+    FILE * pFile = pFileName ? fopen( pFileName, "wb" ) : stdout;
+    if ( pFile == NULL ) { printf( "Cannot open file \"%s\" for writing.\n", pFileName ); return; }
+
+    Ndr_DesForEachMod( p, Mod )
+        Ndr_WriteVerilogModule( pFile, p, Mod, pNames );
+    
+    if ( pFileName ) fclose( pFile );
 }
 
 
@@ -388,14 +438,14 @@ static inline void Ndr_ModuleWriteVerilog( char * pFileName, void * pModule, cha
 ////////////////////////////////////////////////////////////////////////
 
 // creating a new module (returns pointer to the memory buffer storing the module info)
-static inline void * Ndr_ModuleCreate( int Name )
+static inline void * Ndr_Create( int Name )
 {
     Ndr_Data_t * p = ABC_ALLOC( Ndr_Data_t, 1 );
     p->nSize = 0;
     p->nCap  = 16;
     p->pHead = ABC_ALLOC( unsigned char, p->nCap );
     p->pBody = ABC_ALLOC( unsigned int, p->nCap * 4 );
-    Ndr_DataPush( p, NDR_MODULE, 0 );
+    Ndr_DataPush( p, NDR_DESIGN, 0 );
     Ndr_DataPush( p, NDR_NAME, Name );
     Ndr_DataAddTo( p, 0, p->nSize );
     assert( p->nSize == 2 );
@@ -403,18 +453,37 @@ static inline void * Ndr_ModuleCreate( int Name )
     return p;
 }
 
-// adding a new object (input/output/flop/intenal node) to an already module module
-static inline void Ndr_ModuleAddObject( void * pModule, int Type, int InstName, 
-                                        int RangeLeft, int RangeRight, int fSignedness, 
-                                        int nInputs, int * pInputs, 
-                                        int nOutputs, int * pOutputs, 
-                                        char * pFunction )
+// creating a new module in an already started design 
+// returns module ID to be used when adding objects to the module
+static inline int Ndr_AddModule( void * pDesign, int Name )
 {
-    Ndr_Data_t * p = (Ndr_Data_t *)pModule;
-    int Obj = p->nSize;  assert( Type != 0 );
+    Ndr_Data_t * p = (Ndr_Data_t *)pDesign;
+    int Mod = p->nSize;  
+    Ndr_DataResize( p, 6 );
+    Ndr_DataPush( p, NDR_MODULE, 0 );
+    Ndr_DataPush( p, NDR_NAME, Name );
+    Ndr_DataAddTo( p, Mod, p->nSize - Mod );
+    Ndr_DataAddTo( p, 0, p->nSize - Mod );
+    assert( (int)p->pBody[0] == p->nSize );
+    return Mod + 256;
+}
+
+// adding a new object (input/output/flop/intenal node) to an already started module
+// this procedure takes the design, the module ID, and the parameters of the boject
+// (please note that all objects should be added to a given module before starting a new module)
+static inline void Ndr_AddObject( void * pDesign, int ModuleId,
+                                  int ObjType, int InstName, 
+                                  int RangeLeft, int RangeRight, int fSignedness, 
+                                  int nInputs, int * pInputs, 
+                                  int nOutputs, int * pOutputs, 
+                                  char * pFunction )
+{
+    Ndr_Data_t * p = (Ndr_Data_t *)pDesign;
+    int Mod = ModuleId - 256;  
+    int Obj = p->nSize;  assert( ObjType != 0 );
     Ndr_DataResize( p, 6 );
     Ndr_DataPush( p, NDR_OBJECT, 0 );
-    Ndr_DataPush( p, NDR_OPERTYPE, Type );
+    Ndr_DataPush( p, NDR_OPERTYPE, ObjType );
     Ndr_DataPushRange( p, RangeLeft, RangeRight, fSignedness );
     if ( InstName )
         Ndr_DataPush( p, NDR_NAME, InstName );
@@ -422,14 +491,15 @@ static inline void Ndr_ModuleAddObject( void * pModule, int Type, int InstName,
     Ndr_DataPushArray( p, NDR_OUTPUT, nOutputs, pOutputs );
     Ndr_DataPushString( p, NDR_FUNCTION, pFunction );
     Ndr_DataAddTo( p, Obj, p->nSize - Obj );
+    Ndr_DataAddTo( p, Mod, p->nSize - Obj );
     Ndr_DataAddTo( p, 0, p->nSize - Obj );
     assert( (int)p->pBody[0] == p->nSize );
 }
 
 // deallocate the memory buffer
-static inline void Ndr_ModuleDelete( void * pModule )
+static inline void Ndr_Delete( void * pDesign )
 {
-    Ndr_Data_t * p = (Ndr_Data_t *)pModule;
+    Ndr_Data_t * p = (Ndr_Data_t *)pDesign;
     if ( !p ) return;
     free( p->pHead );
     free( p->pBody );
@@ -442,7 +512,7 @@ static inline void Ndr_ModuleDelete( void * pModule )
 ////////////////////////////////////////////////////////////////////////
 
 // file reading/writing
-static inline void * Ndr_ModuleRead( char * pFileName )
+static inline void * Ndr_Read( char * pFileName )
 {
     Ndr_Data_t * p; int nFileSize, RetValue;
     FILE * pFile = fopen( pFileName, "rb" );
@@ -461,16 +531,18 @@ static inline void * Ndr_ModuleRead( char * pFileName )
     RetValue = (int)fread( p->pHead, 1, p->nCap, pFile );
     assert( p->nSize == (int)p->pBody[0] );
     fclose( pFile );
+    //printf( "Read the design from file \"%s\".\n", pFileName );
     return p;
 }
-static inline void Ndr_ModuleWrite( char * pFileName, void * pModule )
+static inline void Ndr_Write( char * pFileName, void * pDesign )
 {
-    Ndr_Data_t * p = (Ndr_Data_t *)pModule; int RetValue;
+    Ndr_Data_t * p = (Ndr_Data_t *)pDesign; int RetValue;
     FILE * pFile = fopen( pFileName, "wb" );
     if ( pFile == NULL ) { printf( "Cannot open file \"%s\" for writing.\n", pFileName ); return; }
     RetValue = (int)fwrite( p->pBody, 4, p->pBody[0], pFile );
     RetValue = (int)fwrite( p->pHead, 1, p->pBody[0], pFile );
     fclose( pFile );
+    //printf( "Dumped the design into file \"%s\".\n", pFileName );
 }
 
 
@@ -478,7 +550,8 @@ static inline void Ndr_ModuleWrite( char * pFileName, void * pModule )
 ///                     TESTING PROCEDURE                            ///
 ////////////////////////////////////////////////////////////////////////
 
-// This testing procedure creates and writes into a Verilog file the following module
+// This testing procedure creates and writes into a Verilog file 
+// for the following design composed of one module
 
 // module add10 ( input [3:0] a, output [3:0] s );
 //   wire [3:0] const10 = 4'b1010;
@@ -497,17 +570,194 @@ static inline void Ndr_ModuleTest()
     char * ppNames[5] = { NULL, "add10", "a", "s", "const10" };
 
     // create a new module
-    void * pModule = Ndr_ModuleCreate( 1 );
+    void * pDesign = Ndr_Create( 1 );
+
+    int ModuleID = Ndr_AddModule( pDesign, 1 );
 
     // add objects to the modele
-    Ndr_ModuleAddObject( pModule, ABC_OPER_CI,       0,   3, 0, 0,   0, NULL,      1, &NameIdA,   NULL      ); // no fanins
-    Ndr_ModuleAddObject( pModule, ABC_OPER_CONST,    0,   3, 0, 0,   0, NULL,      1, &NameIdC,   "4'b1010" ); // no fanins
-    Ndr_ModuleAddObject( pModule, ABC_OPER_ARI_ADD,  0,   3, 0, 0,   2, Fanins,    1, &NameIdS,   NULL      ); // fanins are a and const10 
-    Ndr_ModuleAddObject( pModule, ABC_OPER_CO,       0,   3, 0, 0,   1, &NameIdS,  0, NULL,       NULL      ); // fanin is a
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_CI,       0,   3, 0, 0,   0, NULL,      1, &NameIdA,   NULL      ); // no fanins
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_CONST,    0,   3, 0, 0,   0, NULL,      1, &NameIdC,   "4'b1010" ); // no fanins
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_ARI_ADD,  0,   3, 0, 0,   2, Fanins,    1, &NameIdS,   NULL      ); // fanins are a and const10 
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_CO,       0,   3, 0, 0,   1, &NameIdS,  0, NULL,       NULL      ); // fanin is a
 
     // write Verilog for verification
-    Ndr_ModuleWriteVerilog( NULL, pModule, ppNames );
-    Ndr_ModuleDelete( pModule );
+    Ndr_WriteVerilog( NULL, pDesign, ppNames );
+    Ndr_Write( "add4.ndr", pDesign );
+    Ndr_Delete( pDesign );
+}
+
+
+
+// This testing procedure creates and writes into a Verilog file 
+// for the following design composed of one adder divided into two
+
+// module add8 ( input [7:0] a, input [7:0] b, output [7:0] s, output co );
+//   wire [3:0] a0 = a[3:0];
+//   wire [3:0] b0 = b[3:0];
+
+//   wire [7:4] a1 = a[7:4];
+//   wire [7:4] b1 = b[7:4];
+
+//   wire [4:0] r0 = a0 + b0;
+//   wire [3:0] s0 = r0[3:0];
+//   wire rco = r0[4];
+
+//   wire [4:0] r1 = a1 + b1 + rco;
+//   wire [3:0] s1 = r1[3:0];
+//   assign co = r1[4];
+
+//   assign s = {s1, s0};
+// endmodule
+
+static inline void Ndr_ModuleTestAdder()
+{
+    // map name IDs into char strings
+    char * ppNames[20] = {  NULL, 
+                           "a", "b", "s", "co",          // 1,  2,  3,  4
+                           "a0",  "a1",  "b0",  "b1",    // 5,  6,  7,  8
+                           "r0", "s0", "rco",            // 9,  10, 11
+                           "r1", "s1", "add8"            // 12, 13, 14
+                         };
+    // fanins 
+    int FaninA        =  1;
+    int FaninB        =  2;
+    int FaninS        =  3;
+    int FaninCO       =  4;
+
+    int FaninA0       =  5;
+    int FaninA1       =  6;
+    int FaninB0       =  7;
+    int FaninB1       =  8;
+
+    int FaninR0       =  9;
+    int FaninS0       = 10;
+    int FaninRCO      = 11;
+
+    int FaninR1       = 12;
+    int FaninS1       = 13;
+
+    int Fanins1[2]    = { FaninA0, FaninB0 };
+    int Fanins2[3]    = { FaninA1, FaninB1, FaninRCO };
+    int Fanins3[4]    = { FaninS1, FaninS0 };
+
+    // create a new module
+    void * pDesign = Ndr_Create( 14 );
+
+    int ModuleID = Ndr_AddModule( pDesign, 14 );
+
+    // add objects to the modele
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_CI,       0,   7, 0, 0,   0, NULL,      1, &FaninA,   NULL  );  // no fanins
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_CI,       0,   7, 0, 0,   0, NULL,      1, &FaninB,   NULL  );  // no fanins
+
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_SLICE,    0,   3, 0, 0,   1, &FaninA,   1, &FaninA0,   NULL );  // wire [3:0] a0 = a[3:0];
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_SLICE,    0,   3, 0, 0,   1, &FaninB,   1, &FaninB0,   NULL );  // wire [3:0] b0 = a[3:0];
+
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_SLICE,    0,   7, 4, 0,   1, &FaninA,   1, &FaninA1,   NULL );  // wire [7:4] a1 = a[7:4];
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_SLICE,    0,   7, 4, 0,   1, &FaninB,   1, &FaninB1,   NULL );  // wire [7:4] b1 = b[7:4];
+
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_ARI_ADD,  0,   4, 0, 0,   2, Fanins1,   1, &FaninR0,   NULL );  // wire [4:0] r0 = a0 + b0;
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_SLICE,    0,   3, 0, 0,   1, &FaninR0,  1, &FaninS0,   NULL );  // wire [3:0] s0 = r0[3:0];
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_SLICE,    0,   4, 4, 0,   1, &FaninR0,  1, &FaninRCO,  NULL );  // wire rco = r0[4];
+
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_ARI_ADD,  0,   4, 0, 0,   3, Fanins2,   1, &FaninR1,   NULL );  // wire [4:0] r1 = a1 + b1 + rco;
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_SLICE,    0,   3, 0, 0,   1, &FaninR1,  1, &FaninS1,   NULL );  // wire [3:0] s1 = r1[3:0];
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_SLICE,    0,   4, 4, 0,   1, &FaninR1,  1, &FaninCO,   NULL );  // assign co = r1[4];
+
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_CONCAT,   0,   7, 0, 0,   2, Fanins3,   1, &FaninS,    NULL );  // s = {s1, s0};
+
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_CO,       0,   7, 0, 0,   1, &FaninS,   0, NULL,       NULL ); 
+    Ndr_AddObject( pDesign, ModuleID, ABC_OPER_CO,       0,   0, 0, 0,   1, &FaninCO,  0, NULL,       NULL ); 
+
+    // write Verilog for verification
+    Ndr_WriteVerilog( NULL, pDesign, ppNames );
+    Ndr_Write( "add8.ndr", pDesign );
+    Ndr_Delete( pDesign );
+
+}
+
+// This testing procedure creates and writes into a Verilog file 
+// for the following hierarchical design composed of three modules
+
+// module mux21w ( input sel, input [3:0] d1, input [3:0] d0, output [3:0] out );
+//   assign out = sel ? d1 : d0;
+// endmodule
+
+// module mux41w ( input [1:0] sel, input [15:0] d, output [3:0] out );
+//   wire [3:0] t0, t1;
+//   wire [3:0] d0 = d[3:0];
+//   wire [3:0] d1 = d[7:4];
+//   wire [3:0] d2 = d[11:8];
+//   wire [3:0] d3 = d[15:12];
+//   wire sel0 = sel[0];
+//   wire sel1 = sel[1];
+//   mux21w i0 ( sel0, d1, d0, t0 );
+//   mux21w i1 ( sel0, d3, d2, t1 );
+//   mux21w i2 ( sel1, t1, t0, out );
+// endmodule
+
+static inline void Ndr_ModuleTestHierarchy()
+{
+    // map name IDs into char strings
+    char * ppNames[20] = {  NULL, 
+                           "mux21w", "mux41w",     // 1,  2
+                           "sel",  "d",  "out",    // 3,  4,  5
+                           "d0", "d1", "d2", "d3", // 6,  7,  8,  9
+                           "sel0", "sel1",         // 10, 11,
+                           "t0", "t1",             // 12, 13
+                           "i0", "i1", "i2"        // 14, 15, 16
+                         };
+    // fanins 
+    int FaninSel      =  3;
+    int FaninSel0     = 10;
+    int FaninSel1     = 11;
+    int FaninD        =  4;
+    int FaninD0       =  6;
+    int FaninD1       =  7;
+    int FaninD2       =  8;
+    int FaninD3       =  9;
+    int FaninT0       = 12;
+    int FaninT1       = 13;
+    int FaninOut      =  5;
+    int Fanins1[3]    = {  FaninSel,  FaninD1, FaninD0 };
+    int Fanins3[3][3] = { {FaninSel0, FaninD1, FaninD0 },  
+                          {FaninSel0, FaninD3, FaninD2 },  
+                          {FaninSel1, FaninT1, FaninT0 } };
+
+    // create a new module
+    void * pDesign = Ndr_Create( 2 );
+
+    int Module21, Module41;
+
+    Module21 = Ndr_AddModule( pDesign, 1 );
+    
+    Ndr_AddObject( pDesign, Module21, ABC_OPER_CI,        0,   0, 0, 0,   0, NULL,        1, &FaninSel,  NULL ); 
+    Ndr_AddObject( pDesign, Module21, ABC_OPER_CI,        0,   3, 0, 0,   0, NULL,        1, &FaninD1,   NULL ); 
+    Ndr_AddObject( pDesign, Module21, ABC_OPER_CI,        0,   3, 0, 0,   0, NULL,        1, &FaninD0,   NULL ); 
+    Ndr_AddObject( pDesign, Module21, ABC_OPER_BIT_MUX,   0,   3, 0, 0,   3, Fanins1,     1, &FaninOut,  NULL ); 
+    Ndr_AddObject( pDesign, Module21, ABC_OPER_CO,        0,   3, 0, 0,   1, &FaninOut,   0, NULL,       NULL ); 
+
+    Module41 = Ndr_AddModule( pDesign, 2 );
+
+    Ndr_AddObject( pDesign, Module41, ABC_OPER_CI,        0,   1, 0, 0,   0, NULL,        1, &FaninSel,  NULL ); 
+    Ndr_AddObject( pDesign, Module41, ABC_OPER_CI,        0,   15,0, 0,   0, NULL,        1, &FaninD,    NULL ); 
+
+    Ndr_AddObject( pDesign, Module41, ABC_OPER_SLICE,     0,   3, 0, 0,   1, &FaninD,     1, &FaninD0,   NULL ); 
+    Ndr_AddObject( pDesign, Module41, ABC_OPER_SLICE,     0,   7, 4, 0,   1, &FaninD,     1, &FaninD1,   NULL ); 
+    Ndr_AddObject( pDesign, Module41, ABC_OPER_SLICE,     0,   11,8, 0,   1, &FaninD,     1, &FaninD2,   NULL ); 
+    Ndr_AddObject( pDesign, Module41, ABC_OPER_SLICE,     0,   15,12,0,   1, &FaninD,     1, &FaninD3,   NULL ); 
+
+    Ndr_AddObject( pDesign, Module41, ABC_OPER_SLICE,     0,   0, 0, 0,   1, &FaninSel,   1, &FaninSel0, NULL ); 
+    Ndr_AddObject( pDesign, Module41, ABC_OPER_SLICE,     0,   1, 1, 0,   1, &FaninSel,   1, &FaninSel1, NULL ); 
+
+    Ndr_AddObject( pDesign, Module41, Module21,          14,   3, 0, 0,   3, Fanins3[0],  1, &FaninT0,   NULL ); 
+    Ndr_AddObject( pDesign, Module41, Module21,          15,   3, 0, 0,   3, Fanins3[1],  1, &FaninT1,   NULL ); 
+    Ndr_AddObject( pDesign, Module41, Module21,          16,   3, 0, 0,   3, Fanins3[2],  1, &FaninOut,  NULL ); 
+    Ndr_AddObject( pDesign, Module41, ABC_OPER_CO,        0,   3, 0, 0,   1, &FaninOut,   0, NULL,       NULL ); 
+
+    // write Verilog for verification
+    Ndr_WriteVerilog( NULL, pDesign, ppNames );
+    Ndr_Write( "mux41w.ndr", pDesign );
+    Ndr_Delete( pDesign );
 }
 
 

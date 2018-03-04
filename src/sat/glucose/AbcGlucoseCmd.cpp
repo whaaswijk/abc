@@ -26,8 +26,8 @@
 
 ABC_NAMESPACE_HEADER_START
 
-void Glucose_Init(Abc_Frame_t *pAbc);
-void Glucose_End( Abc_Frame_t * pAbc );
+extern void Glucose_Init( Abc_Frame_t *pAbc );
+extern void Glucose_End( Abc_Frame_t * pAbc );
 
 ABC_NAMESPACE_HEADER_END
 
