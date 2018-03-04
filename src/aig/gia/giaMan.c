@@ -92,6 +92,7 @@ void Gia_ManStop( Gia_Man_t * p )
     Vec_IntFreeP( &p->vClassOld );
     Vec_WrdFreeP( &p->vSims );
     Vec_WrdFreeP( &p->vSimsPi );
+    Vec_IntFreeP( &p->vTimeStamps );
     Vec_FltFreeP( &p->vTiming );
     Vec_VecFreeP( &p->vClockDoms );
     Vec_IntFreeP( &p->vCofVars );
@@ -118,6 +119,7 @@ void Gia_ManStop( Gia_Man_t * p )
     Vec_IntFreeP( &p->vTruths );
     Vec_IntErase( &p->vCopies );
     Vec_IntErase( &p->vCopies2 );
+    Vec_IntFreeP( &p->vVar2Obj );
     Vec_IntErase( &p->vCopiesTwo );
     Vec_IntErase( &p->vSuppVars );
     Vec_WrdFreeP( &p->vSuppWords );
@@ -762,15 +764,15 @@ void Gia_ManPrintNpnClasses( Gia_Man_t * p )
         nTotal += ClassCounts[i];
     Abc_Print( 1, "NPN CLASS STATISTICS (for %d LUT4 present in the current mapping):\n", nTotal );
     OtherClasses = 0;
-    for ( i = 0; i < 222; i++ )
+    for ( i = k = 0; i < 222; i++ )
     {
         if ( ClassCounts[i] == 0 )
             continue;
 //        if ( 100.0 * ClassCounts[i] / (nTotal+1) < 0.1 ) // do not show anything below 0.1 percent
 //            continue;
         OtherClasses += ClassCounts[i];
-        Abc_Print( 1, "Class %3d :  Count = %6d   (%7.2f %%)   %s\n", 
-            i, ClassCounts[i], 100.0 * ClassCounts[i] / (nTotal+1), pNames[i] );
+        Abc_Print( 1, "%3d: Class %3d :  Count = %6d   (%7.2f %%)   %s\n", 
+            ++k, i, ClassCounts[i], 100.0 * ClassCounts[i] / (nTotal+1), pNames[i] );
     }
     OtherClasses = nTotal - OtherClasses;
     Abc_Print( 1, "Other     :  Count = %6d   (%7.2f %%)\n", 

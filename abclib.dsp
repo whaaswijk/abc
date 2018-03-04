@@ -807,6 +807,10 @@ SOURCE=.\src\base\wlc\wlcJson.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\src\base\wlc\wlcNdr.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\src\base\wlc\wlcNtk.c
 # End Source File
 # Begin Source File
@@ -2028,6 +2032,10 @@ SOURCE=.\src\sat\bmc\bmcMaj.c
 # Begin Source File
 
 SOURCE=.\src\sat\bmc\bmcMaj2.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\sat\bmc\bmcMaj3.c
 # End Source File
 # Begin Source File
 
@@ -4679,6 +4687,10 @@ SOURCE=.\src\aig\gia\giaCSat.c
 # End Source File
 # Begin Source File
 
+SOURCE=.\src\aig\gia\giaCSat2.c
+# End Source File
+# Begin Source File
+
 SOURCE=.\src\aig\gia\giaCSatOld.c
 # End Source File
 # Begin Source File
@@ -5004,6 +5016,18 @@ SOURCE=.\src\aig\miniaig\minilut.h
 # Begin Source File
 
 SOURCE=.\src\aig\miniaig\ndr.h
+# End Source File
+# End Group
+# Begin Group "uap"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\src\aig\uap\uap.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\aig\uap\uapSat.c
 # End Source File
 # End Group
 # End Group
