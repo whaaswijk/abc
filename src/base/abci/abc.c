@@ -2944,7 +2944,7 @@ int Abc_CommandShow( Abc_Frame_t * pAbc, int argc, char ** argv )
 usage:
     Abc_Print( -2, "usage: show [-srgfh]\n" );
     Abc_Print( -2, "       visualizes the network structure using DOT and GSVIEW\n" );
-#ifdef WIN32
+#ifdef _WIN32
     Abc_Print( -2, "       \"dot.exe\" and \"gsview32.exe\" should be set in the paths\n" );
     Abc_Print( -2, "       (\"gsview32.exe\" may be in \"C:\\Program Files\\Ghostgum\\gsview\\\")\n" );
 #endif

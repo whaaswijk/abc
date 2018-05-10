@@ -18,7 +18,7 @@
 
 ***********************************************************************/
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <process.h>
 #else
 #include <unistd.h>
@@ -49,7 +49,7 @@ static int CmdCommandUnsetVariable ( Abc_Frame_t * pAbc, int argc, char ** argv 
 static int CmdCommandUndo          ( Abc_Frame_t * pAbc, int argc, char ** argv );
 static int CmdCommandRecall        ( Abc_Frame_t * pAbc, int argc, char ** argv );
 static int CmdCommandEmpty         ( Abc_Frame_t * pAbc, int argc, char ** argv );
-#if defined(WIN32) && !defined(__cplusplus)
+#if defined(_WIN32) && !defined(__cplusplus)
 static int CmdCommandScanDir       ( Abc_Frame_t * pAbc, int argc, char ** argv );
 static int CmdCommandRenameFiles   ( Abc_Frame_t * pAbc, int argc, char ** argv );
 static int CmdCommandLs            ( Abc_Frame_t * pAbc, int argc, char ** argv );
@@ -99,7 +99,7 @@ void Cmd_Init( Abc_Frame_t * pAbc )
     Cmd_CommandAdd( pAbc, "Basic", "undo",          CmdCommandUndo,            0 );
     Cmd_CommandAdd( pAbc, "Basic", "recall",        CmdCommandRecall,          0 );
     Cmd_CommandAdd( pAbc, "Basic", "empty",         CmdCommandEmpty,           0 );
-#if defined(WIN32) && !defined(__cplusplus)
+#if defined(_WIN32) && !defined(__cplusplus)
     Cmd_CommandAdd( pAbc, "Basic", "scandir",       CmdCommandScanDir,         0 );
     Cmd_CommandAdd( pAbc, "Basic", "renamefiles",   CmdCommandRenameFiles,     0 );
     Cmd_CommandAdd( pAbc, "Basic", "ls",            CmdCommandLs,              0 );
@@ -1141,7 +1141,7 @@ usage:
 #endif
 
 
-#if defined(WIN32) && !defined(__cplusplus)
+#if defined(_WIN32) && !defined(__cplusplus)
 #include <direct.h>
 #include <io.h>
 
@@ -1829,7 +1829,7 @@ usage:
 #endif
 
 
-#ifdef WIN32
+#ifdef _WIN32
 #define unlink _unlink
 #endif
 
@@ -2165,7 +2165,7 @@ void Gia_ManGnuplotShow( char * pPlotFileName )
     fclose( pFile );
 
     // spawn the viewer
-#ifdef WIN32
+#ifdef _WIN32
     if ( _spawnl( _P_NOWAIT, pProgNameGnuplot, pProgNameGnuplot, pPlotFileName, NULL ) == -1 )
     {
         fprintf( stdout, "Cannot find \"%s\".\n", pProgNameGnuplot );
@@ -2326,7 +2326,7 @@ int CmdCommandCapo( Abc_Frame_t * pAbc, int argc, char **argv )
     fclose( pFile );
 
     // spawn the viewer
-#ifdef WIN32
+#ifdef _WIN32
     if ( _spawnl( _P_NOWAIT, pProgNameGnuplot, pProgNameGnuplot, pPlotFileName, NULL ) == -1 )
     {
         fprintf( stdout, "Cannot find \"%s\".\n", pProgNameGnuplot );

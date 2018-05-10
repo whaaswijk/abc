@@ -84,6 +84,10 @@
   #endif
 #endif
 
+#ifdef _WIN32
+#include <Windows.h>
+#endif
+
 #include "abc_namespaces.h"
 
 ////////////////////////////////////////////////////////////////////////
@@ -264,14 +268,32 @@ static inline int      Abc_Var2Lit4( int Var, int Att )       { assert(!(Att >> 
 static inline int      Abc_Lit2Var4( int Lit )                { assert(Lit >= 0);    return Lit >> 4;         }
 static inline int      Abc_Lit2Att4( int Lit )                { assert(Lit >= 0);    return Lit & 15;         }
 
+#ifndef HAVE_STRUCT_TIMESPEC
+#define HAVE_STRUCT_TIMESPEC
+	struct timespec { long tv_sec; long tv_nsec; }; 
+#endif
+int clock_gettime(int, struct timespec *spec) 
+{
+	__int64 wintime; GetSystemTimeAsFileTime((FILETIME*)&wintime);
+	wintime -= 116444736000000000i64;  //1jan1601 to 1jan1970
+	spec->tv_sec = wintime / 10000000i64;           //seconds
+	spec->tv_nsec = wintime % 10000000i64 * 100;      //nano-seconds
+	return 0;
+}
+
 // time counting
 typedef ABC_INT64_T abctime;
 static inline abctime Abc_Clock()
 {
 #if (defined(LIN) || defined(LIN64)) && !(__APPLE__ & __MACH__) && !defined(__MINGW32__)
     struct timespec ts;
+#ifdef _WIN32
+    if ( clock_gettime(0, &ts) < 0 ) 
+        return (abctime)-1;
+#else
     if ( clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) < 0 ) 
         return (abctime)-1;
+#endif
     abctime res = ((abctime) ts.tv_sec) * CLOCKS_PER_SEC;
     res += (((abctime) ts.tv_nsec) * CLOCKS_PER_SEC) / 1000000000;
     return res;

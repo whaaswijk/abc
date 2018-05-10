@@ -56,9 +56,9 @@ execute_process(
         ABC_USE_NO_CUDD=1
         ARCHFLAGS_EXE=${CMAKE_CURRENT_BINARY_DIR}/abc_arch_flags_program.exe
         ABC_MAKE_NO_DEPS=1
-        CC=${CMAKE_C_COMPILER}
-        CXX=${CMAKE_CXX_COMPILER}
-        LD=${CMAKE_CXX_COMPILER}
+        CC="${CMAKE_C_COMPILER}"
+        CXX="${CMAKE_CXX_COMPILER}"
+        LD="${CMAKE_CXX_COMPILER}"
         cmake_info
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   OUTPUT_VARIABLE MAKE_OUTPUT
@@ -68,6 +68,15 @@ execute_process(
 function(extract_var SEPARATOR DEST_VARIABLE MAKE_OUTPUT)
   string(REGEX MATCH "${SEPARATOR} .* ${SEPARATOR}" TMP "${MAKE_OUTPUT}")
   string(REGEX REPLACE "${SEPARATOR} (.*) ${SEPARATOR}" "\\1" TMP "${TMP}")
+
+
+  # Replace tabs by spaces and multiple spaces by a single one.
+  # Parsing the Makefile may introduce these on certain platforms.
+  string(REGEX REPLACE "\t" " " TMP "${TMP}")
+  string(REGEX REPLACE "  " " " TMP "${TMP}")
+  string(REGEX REPLACE "   " " " TMP "${TMP}")
+  string(REGEX REPLACE "    " " " TMP "${TMP}")
+  string(REGEX REPLACE "     " " " TMP "${TMP}")
 
   separate_arguments(TMP)
 

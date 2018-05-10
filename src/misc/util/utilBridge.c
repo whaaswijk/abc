@@ -23,7 +23,9 @@
 #include <stdlib.h>
 #include <assert.h>
 #if defined(LIN) || defined(LIN64)
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #endif
 
 #include "aig/gia/gia.h"

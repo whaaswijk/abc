@@ -49,6 +49,10 @@ SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 #include "mainInt.h"
 #include "base/wlc/wlc.h"
 
+#ifdef _WIN32
+#include <crtdbg.h>
+#endif
+
 ABC_NAMESPACE_IMPL_START
 
 

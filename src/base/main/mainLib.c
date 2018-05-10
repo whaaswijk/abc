@@ -18,6 +18,10 @@
 
 ***********************************************************************/
 
+#ifdef _WIN32
+#include <crtdbg.h>
+#endif
+
 #include "base/abc/abc.h"
 #include "mainInt.h"
 
