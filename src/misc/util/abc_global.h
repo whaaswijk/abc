@@ -268,6 +268,7 @@ static inline int      Abc_Var2Lit4( int Var, int Att )       { assert(!(Att >> 
 static inline int      Abc_Lit2Var4( int Lit )                { assert(Lit >= 0);    return Lit >> 4;         }
 static inline int      Abc_Lit2Att4( int Lit )                { assert(Lit >= 0);    return Lit & 15;         }
 
+#ifdef _WIN32
 #ifndef HAVE_STRUCT_TIMESPEC
 #define HAVE_STRUCT_TIMESPEC
 	struct timespec { long tv_sec; long tv_nsec; }; 
@@ -280,6 +281,7 @@ int clock_gettime(int, struct timespec *spec)
 	spec->tv_nsec = wintime % 10000000i64 * 100;      //nano-seconds
 	return 0;
 }
+#endif
 
 // time counting
 typedef ABC_INT64_T abctime;
