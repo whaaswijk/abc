@@ -32,15 +32,21 @@ endfunction()
 
 project(abc)
 
-if(READLINE_FOUND MATCHES TRUE)
-    addprefix(ABC_READLINE_INCLUDES_FLAGS "-I" ${READLINE_INCLUDE})
-    string(REPLACE ";" " " ABC_READLINE_INCLUDES_FLAGS "${ABC_READLINE_INCLUDES_FLAGS}")
-    list(APPEND ABC_READLINE_FLAGS "ABC_READLINE_INCLUDES=${ABC_READLINE_INCLUDES_FLAGS}")
+if(UNIX)
+    if(READLINE_FOUND MATCHES TRUE)
+        addprefix(ABC_READLINE_INCLUDES_FLAGS "-I" ${READLINE_INCLUDE})
+        string(REPLACE ";" " " ABC_READLINE_INCLUDES_FLAGS "${ABC_READLINE_INCLUDES_FLAGS}")
+        list(APPEND ABC_READLINE_FLAGS "ABC_READLINE_INCLUDES=${ABC_READLINE_INCLUDES_FLAGS}")
 
-    string(REPLACE ";" " " ABC_READLINE_LIBRARIES_FLAGS "${READLINE_LIBRARIES}")
-    list(APPEND ABC_READLINE_FLAGS "ABC_READLINE_LIBRARIES=${ABC_READLINE_LIBRARIES_FLAGS}")
-elseif(READLINE_FOUND MATCHES FALSE)
+        string(REPLACE ";" " " ABC_READLINE_LIBRARIES_FLAGS "${READLINE_LIBRARIES}")
+        list(APPEND ABC_READLINE_FLAGS "ABC_READLINE_LIBRARIES=${ABC_READLINE_LIBRARIES_FLAGS}")
+    elseif(READLINE_FOUND MATCHES FALSE)
+        list(APPEND ABC_READLINE_FLAGS "ABC_USE_NO_READLINE=1")
+    endif()
+else()
     list(APPEND ABC_READLINE_FLAGS "ABC_USE_NO_READLINE=1")
+    # Abusing existing variable by additional flags here
+    list(APPEND ABC_READLINE_FLAGS "ABC_USE_NO_PTHREADS=1")
 endif()
 
 if(ABC_USE_NAMESPACE)
@@ -92,9 +98,14 @@ if(ABC_USE_NAMESPACE)
     set_source_files_properties(${ABC_SRC} PROPERTIES LANGUAGE CXX)
 endif()
 
+
 function(abc_properties target visibility)
     target_include_directories(${target} ${visibility} ${CMAKE_CURRENT_SOURCE_DIR}/src )
     target_compile_options_filtered(${target} ${visibility} ${ABC_CFLAGS} ${ABC_CXXFLAGS} -w)
+    if(WIN32)
+        target_compile_options(${target} ${visibility} "-DNT64")
+        target_compile_options(${target} ${visibility} "-D_XKEYCHECK_H;")
+    endif()
     target_link_libraries(${target} ${visibility} ${ABC_LIBS})
 endfunction()
 

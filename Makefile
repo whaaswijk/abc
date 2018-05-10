@@ -38,12 +38,21 @@ default: $(PROG)
 
 ARCHFLAGS_EXE ?= ./arch_flags
 
+UNAME_S := $(shell uname -s)
 $(ARCHFLAGS_EXE) : arch_flags.c
-	$(CC) arch_flags.c -o $(ARCHFLAGS_EXE)
+	ifeq ($(UNAME_S),Linux) # We should be on Linux
+		$(CC) arch_flags.c -o $(ARCHFLAGS_EXE)
+	else
+		$(CC) /Fe$(ARCHFLAGS_EXE) arch_flags.c 
+	endif
 
 INCLUDES += -I$(ABCSRC)/src
 
-ARCHFLAGS ?= $(shell $(CC) $(ABCSRC)/arch_flags.c -o $(ARCHFLAGS_EXE) && $(ARCHFLAGS_EXE))
+ifeq ($(UNAME_S),Linux) # We should be on Linux
+	ARCHFLAGS ?= $(shell $(CC) $(ABCSRC)/arch_flags.c -o $(ARCHFLAGS_EXE) && $(ARCHFLAGS_EXE))
+else
+	ARCHFLAGS ?= $(shell $(CC) /Fe$(ARCHFLAGS_EXE) $(ABCSRC)/arch_flags.c && $(ARCHFLAGS_EXE))
+endif
 ARCHFLAGS := $(ARCHFLAGS)
 
 OPTFLAGS  ?= -g -O
