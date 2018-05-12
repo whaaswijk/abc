@@ -32,6 +32,8 @@
 #include "map/scl/sclCon.h"
 
 ABC_NAMESPACE_IMPL_START
+        
+extern int Sbm_ManTestSat( void * pMan );
 
 ////////////////////////////////////////////////////////////////////////
 ///                        DECLARATIONS                              ///
@@ -2409,7 +2411,6 @@ Gia_Man_t * Nf_ManPerformMapping( Gia_Man_t * pGia, Jf_Par_t * pPars )
     pNew = Nf_ManDeriveMapping( p );
     if ( pPars->fAreaOnly )
     {
-        int Sbm_ManTestSat( void * pMan );
         Sbm_ManTestSat( p );
     }
     Nf_StoDelete( p );
